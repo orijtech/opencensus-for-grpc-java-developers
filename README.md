@@ -13,6 +13,7 @@ mvn install
 
 Name|Notes
 ---|---
+Jaeger|Install Jaeger with the Docker image as per https://www.jaegertracing.io/docs/getting-started/#all-in-one-docker-image
 GOOGLE_APPLICATION_CREDENTIALS|A file containing Google Cloud Platform project credentials. If you don't have one yet installed, please visit https://cloud.google.com/docs/authentication/production
 
 ## Running the setup

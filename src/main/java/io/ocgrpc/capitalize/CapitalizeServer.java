@@ -32,6 +32,7 @@ import io.opencensus.contrib.grpc.metrics.RpcViews;
 import io.opencensus.exporter.stats.prometheus.PrometheusStatsCollector;
 import io.opencensus.exporter.stats.stackdriver.StackdriverStatsConfiguration;
 import io.opencensus.exporter.stats.stackdriver.StackdriverStatsExporter;
+import io.opencensus.exporter.trace.jaeger.JaegerTraceExporter;
 import io.opencensus.exporter.trace.stackdriver.StackdriverTraceConfiguration;
 import io.opencensus.exporter.trace.stackdriver.StackdriverTraceExporter;
 import io.opencensus.trace.config.TraceConfig;
@@ -147,5 +148,8 @@ public class CapitalizeServer {
             // Start the Prometheus server
             HTTPServer prometheusServer = new HTTPServer(9821, true);
         }
+
+        // Create the Jaeger exporter
+        JaegerTraceExporter.createAndRegister("http://localhost:14268/api/traces", "java_capitalize");
     }
 }

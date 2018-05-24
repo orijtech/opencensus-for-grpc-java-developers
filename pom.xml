@@ -47,6 +47,12 @@
 
         <dependency>
             <groupId>io.opencensus</groupId>
+            <artifactId>opencensus-exporter-trace-jaeger</artifactId>
+            <version>${opencensus.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>io.opencensus</groupId>
             <artifactId>opencensus-exporter-stats-stackdriver</artifactId>
             <version>${opencensus.version}</version>
         </dependency>
