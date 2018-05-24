@@ -26,7 +26,12 @@ mvn exec:java -Dexec.mainClass=io.ocgrpc.capitalize.CapitalizeServer
 In another terminal
 ```shell
 mvn exec:java -Dexec.mainClass=io.ocgrpc.capitalize.CapitalizeClient
+```
 
+which will give an interactive shell in which you can type and on hitting
+enter, you'll get results like this
+
+```shell
 > truly
 < TRULY
 
@@ -45,3 +50,9 @@ mvn exec:java -Dexec.mainClass=io.ocgrpc.capitalize.CapitalizeClient
 > 🚀 a1 a4
 < 🚀 A1 A4
 ```
+
+### Results
+![](./screenshots/jaeger-multiple.png)
+![](./screenshots/jaeger-single.png)
+![](./screenshots/stackdriver-monitoring.png)
+![](./screenshots/stackdriver-tracing.png)
