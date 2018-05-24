@@ -27,9 +27,25 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.lang.InterruptedException;
 
+import io.opencensus.common.Duration;
+import io.opencensus.contrib.grpc.metrics.RpcViews;
+import io.opencensus.exporter.stats.prometheus.PrometheusStatsCollector;
+import io.opencensus.exporter.stats.stackdriver.StackdriverStatsConfiguration;
+import io.opencensus.exporter.stats.stackdriver.StackdriverStatsExporter;
+import io.opencensus.exporter.trace.stackdriver.StackdriverTraceConfiguration;
+import io.opencensus.exporter.trace.stackdriver.StackdriverTraceExporter;
+import io.opencensus.trace.config.TraceConfig;
+import io.opencensus.trace.config.TraceParams;
+import io.opencensus.trace.samplers.Samplers;
+import io.opencensus.trace.Span;
+import io.opencensus.trace.Tracer;
+import io.opencensus.trace.Tracing;
+import io.prometheus.client.exporter.HTTPServer;
+
 public class CapitalizeServer {
     private final int serverPort;
     private Server server;
+    private static final Tracer tracer = Tracing.getTracer();
 
     public CapitalizeServer(int serverPort) {
         this.serverPort = serverPort;
@@ -38,6 +54,10 @@ public class CapitalizeServer {
     static class FetchImpl extends FetchGrpc.FetchImplBase {
         @Override
         public void capitalize(Payload req, StreamObserver<Payload> responseObserver) {
+            // For compatibility with earlier than Java 8, instead of Scoped spans
+            // we'll use the finally construct to end spans.
+            Span span = CapitalizeServer.tracer.spanBuilder("(*FetchImpl).capitalize").setRecordEvents(true).startSpan();
+            
             try {
                 String capitalized = req.getData().toString("UTF8").toUpperCase();
                 ByteString bs = ByteString.copyFrom(capitalized.getBytes("UTF8"));
@@ -45,6 +65,7 @@ public class CapitalizeServer {
                 responseObserver.onNext(resp);
             } catch(UnsupportedEncodingException e) {
             } finally {
+                span.end();
                 responseObserver.onCompleted();
             }
         }
@@ -73,6 +94,14 @@ public class CapitalizeServer {
         int port = 9876;
 
         CapitalizeServer csrv = new CapitalizeServer(port);
+
+        // Next step is to setup OpenCensus and its exporters
+        try {
+            setupOpenCensusAndExporters();
+        } catch (IOException e) {
+            System.err.println("Failed to setup OpenCensus exporters: " + e + " so proceeding without it");
+        }
+
         try {
             csrv.listenAndServe();
         } catch (IOException e) {
@@ -82,6 +111,41 @@ public class CapitalizeServer {
         } catch(Exception e) {
             System.err.println("Unhandled exception: " + e);
         } finally {
+        }
+    }
+
+    private static void setupOpenCensusAndExporters() throws IOException {
+        // Change the sampling rate
+        TraceConfig traceConfig = Tracing.getTraceConfig();
+        traceConfig.updateActiveTraceParams(
+            traceConfig.getActiveTraceParams().toBuilder().setSampler(Samplers.alwaysSample()).build());
+
+        // Register all the gRPC views and enable stats
+        RpcViews.registerAllViews();
+
+        String gcpProjectId = System.getenv().get("OCGRPC_GCP_PROJECTID");
+        if (gcpProjectId == "") {
+            gcpProjectId = "census-demos";
+        }
+
+        // Create the Stackdriver stats exporter
+        StackdriverStatsExporter.createAndRegister(
+            StackdriverStatsConfiguration.builder()
+            .setProjectId(gcpProjectId)
+            .setExportInterval(Duration.create(10, 0))
+            .build());
+
+        // Next create the Stackdriver tracing exporter
+        StackdriverTraceExporter.createAndRegister(
+            StackdriverTraceConfiguration.builder()
+            .setProjectId(gcpProjectId)
+            .build());
+
+        if (false) {
+            // And then the Prometheus exporter too
+            PrometheusStatsCollector.createAndRegister();
+            // Start the Prometheus server
+            HTTPServer prometheusServer = new HTTPServer(9821, true);
         }
     }
 }

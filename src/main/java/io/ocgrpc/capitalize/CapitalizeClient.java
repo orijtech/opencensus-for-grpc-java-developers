@@ -26,7 +26,20 @@ import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
 import java.util.concurrent.TimeUnit;
 
+import java.io.IOException;
 import com.google.protobuf.ByteString;
+
+import io.opencensus.contrib.grpc.metrics.RpcViews;
+import io.opencensus.common.Duration;
+import io.opencensus.trace.config.TraceConfig;
+import io.opencensus.trace.config.TraceParams;
+import io.opencensus.trace.samplers.Samplers;
+import io.opencensus.trace.Span;
+import io.opencensus.trace.Tracing;
+import io.opencensus.exporter.stats.stackdriver.StackdriverStatsConfiguration;
+import io.opencensus.exporter.stats.stackdriver.StackdriverStatsExporter;
+import io.opencensus.exporter.trace.stackdriver.StackdriverTraceConfiguration;
+import io.opencensus.exporter.trace.stackdriver.StackdriverTraceExporter;
 
 public class CapitalizeClient {
     private final ManagedChannel channel;
@@ -61,6 +74,13 @@ public class CapitalizeClient {
     public static void main(String []args) {
         CapitalizeClient cc = new CapitalizeClient("0.0.0.0", 9876);
 
+        // Next step is to setup OpenCensus and its exporters
+        try {
+            setupOpenCensusAndExporters();
+        } catch (IOException e) {
+            System.err.println("Failed to setup OpenCensus exporters: " + e + " so proceeding without it");
+        }
+
         try {
             BufferedReader stdin = new BufferedReader(new InputStreamReader(System.in));
 
@@ -68,11 +88,40 @@ public class CapitalizeClient {
                 System.out.print("> ");
                 System.out.flush();
                 String in = stdin.readLine();
+
                 String out = cc.capitalize(in);
-                System.out.println("\n< " + out.toString());
+                System.out.println("< " + out.toString() + "\n");
             }
         } catch (Exception e) {
             System.err.println("Encountered exception: " + e);
         }
+    }
+
+    private static void setupOpenCensusAndExporters() throws IOException {
+        // Change the sampling rate
+        TraceConfig traceConfig = Tracing.getTraceConfig();
+        traceConfig.updateActiveTraceParams(
+            traceConfig.getActiveTraceParams().toBuilder().setSampler(Samplers.alwaysSample()).build());
+
+        // Register all the gRPC views and enable stats
+        RpcViews.registerAllViews();
+
+        String gcpProjectId = System.getenv().get("OCGRPC_GCP_PROJECTID");
+        if (gcpProjectId == "") {
+            gcpProjectId = "census-demos";
+        }
+
+        // Create the Stackdriver stats exporter
+        StackdriverStatsExporter.createAndRegister(
+            StackdriverStatsConfiguration.builder()
+            .setProjectId(gcpProjectId)
+            .setExportInterval(Duration.create(60, 0))
+            .build());
+
+        // Next create the Stackdriver tracing exporter
+        StackdriverTraceExporter.createAndRegister(
+            StackdriverTraceConfiguration.builder()
+            .setProjectId(gcpProjectId)
+            .build());
     }
 }
