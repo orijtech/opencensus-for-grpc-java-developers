@@ -43,13 +43,23 @@ import io.opencensus.trace.Tracer;
 import io.opencensus.trace.Tracing;
 import io.prometheus.client.exporter.HTTPServer;
 
+import redis.clients.jedis.Jedis;
+import redis.clients.jedis.Observability;
+
 public class CapitalizeServer {
     private final int serverPort;
     private Server server;
     private static final Tracer tracer = Tracing.getTracer();
 
+    private static Jedis jedis = new Jedis("localhost");
+
     public CapitalizeServer(int serverPort) {
         this.serverPort = serverPort;
+        try {
+            jedis.auth("");
+        } catch (Exception e) {
+            throw e;
+        }
     }
 
     static class FetchImpl extends FetchGrpc.FetchImplBase {
@@ -60,9 +70,18 @@ public class CapitalizeServer {
             Span span = CapitalizeServer.tracer.spanBuilder("(*FetchImpl).capitalize").setRecordEvents(true).startSpan();
             
             try {
-                String capitalized = req.getData().toString("UTF8").toUpperCase();
+                String orig = req.getData().toString("UTF8");
+                String capitalized = jedis.get(orig);
+                if (capitalized == null || capitalized == "") {
+                    span.addAnnotation("Cache miss");
+                    capitalized = orig.toUpperCase();
+                    jedis.set(orig, capitalized);
+                }
                 ByteString bs = ByteString.copyFrom(capitalized.getBytes("UTF8"));
                 Payload resp = Payload.newBuilder().setData(bs).build();
+                if (System.nanoTime()%2 == 0)
+                    jedis.del(orig, capitalized);
+
                 responseObserver.onNext(resp);
             } catch(UnsupportedEncodingException e) {
             } finally {
@@ -116,6 +135,10 @@ public class CapitalizeServer {
     }
 
     private static void setupOpenCensusAndExporters() throws IOException {
+        // Register the Redis views
+        if (true)
+            Observability.registerAllViews();
+
         // Change the sampling rate
         TraceConfig traceConfig = Tracing.getTraceConfig();
         traceConfig.updateActiveTraceParams(
@@ -150,6 +173,8 @@ public class CapitalizeServer {
         }
 
         // Create the Jaeger exporter
-        JaegerTraceExporter.createAndRegister("http://localhost:14268/api/traces", "java_capitalize");
+        if (false) {
+            JaegerTraceExporter.createAndRegister("http://localhost:14268/api/traces", "java_capitalize");
+        }
     }
 }

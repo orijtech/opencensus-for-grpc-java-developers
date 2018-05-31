@@ -55,4 +55,6 @@ enter, you'll get results like this
 ![](./screenshots/jaeger-multiple.png)
 ![](./screenshots/jaeger-single.png)
 ![](./screenshots/stackdriver-monitoring.png)
-![](./screenshots/stackdriver-tracing.png)
+![](./screenshots/jedis-traces-connecting-detailed.png)
+![](./screenshots/jedis-traces-connected.png)
+![](./screenshots/jedis-traces-on-error-general.png)
